@@ -6,7 +6,7 @@
 #管理题目加载、答案验证等功能。
 
 import random
-from board import GoProblem
+from board import GoProblem, GoBoard
 
 class GoGame:
     def __init__(self, board):
@@ -22,20 +22,44 @@ class GoGame:
         self.current_problem_index = -1
 
     def load_problems(self):
-        self.problems = GoProblem.load_problems_from_db({"status": 2, "qtype": "死活题", "level": "9K"})
+        #self.problems = GoProblem.load_problems_from_db({"status": 2, "qtype": "死活题", "level": "9K"})
+        #self.problems = GoProblem.load_problems_from_db({"publicid": 123452})
+        self.problems = GoProblem.load_problems_from_db({"publicid": 123441})
         if not self.problems:
             raise Exception("No problems found")
 
-    def load_problem(self, index=None):
+    def load_problem(self, board, index=None):
         if index is None:
             self.current_problem_index = random.randint(0, len(self.problems) - 1)
             self.current_problem = self.problems[self.current_problem_index]
+        elif index == self.current_problem_index:
+            # 还是当前的题目
+            pass
         else:
             self.current_problem_index = index
             self.current_problem = self.problems[index]
 
+        print(self.current_problem.publicid, self.current_problem.size)
+        good_answers = []
+        for ans in self.current_problem.answers:
+            if ans['ty'] == 1 and ans['st'] == 2:
+                good_answers.append(ans)
+        self.current_problem.answers = good_answers
+
         self.reset_game()
         self.current_color = 'black' if self.current_problem.blackfirst else 'white'
+
+        # Create game board
+        '''
+        if self.current_problem.size == 19:
+            dynamic_size, min_dot = self.current_problem.calculate_range()
+            self.board.change_size(size=dynamic_size+1)
+        else:
+            self.board.change_size(size=self.current_problem.size)
+            min_dot = { 'name': 'left_top'}
+        self.board.draw_board(min_dot)
+        '''
+        self.board.draw_board()
 
         # Place preset stones
         self.board.place_preset_stones(self.current_problem.prepos)
@@ -50,17 +74,18 @@ class GoGame:
             if first_move is None:
                 print('Warning no answers ty==1 st==2')
                 first_move = 'jj'
-            self.hint_items.append(self.board.draw_hint(first_move))
+            #self.hint_items.append(self.board.draw_hint(first_move))
 
         return {
             'level': self.current_problem.level,
-            'color': 'Black' if self.current_problem.blackfirst else 'White',
+            'color': '黑' if self.current_problem.blackfirst else '白',
             'problem_no': self.current_problem.publicid,
             'type': self.current_problem.ty
         }
 
     def reset_game(self):
         self.board.clear_board()
+        self.board.clear_stones()
         self.user_moves = []
         self.move_number = 1
 
@@ -72,8 +97,10 @@ class GoGame:
         self.black_captures = 0
         self.white_captures = 0
 
+        self.board.change_size()
+
     def get_group(self, row, col):
-        color = self.board.board[row][col]['color']
+        color = self.board.stones[row][col]['color']
         group = set()
         stack = [(row, col)]
         while stack:
@@ -84,7 +111,7 @@ class GoGame:
                 for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                     nr, nc = r + dr, c + dc
                     if 0 <= nr < self.board.size and 0 <= nc < self.board.size:
-                        if self.board.board[nr][nc] is not None and self.board.board[nr][nc]['color'] == color:
+                        if self.board.stones[nr][nc] is not None and self.board.stones[nr][nc]['color'] == color:
                             stack.append((nr, nc))
         return group
 
@@ -93,16 +120,16 @@ class GoGame:
             for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                 nr, nc = r + dr, c + dc
                 if 0 <= nr < self.board.size and 0 <= nc < self.board.size:
-                    if self.board.board[nr][nc] is None:
+                    if self.board.stones[nr][nc] is None:
                         return True
         return False
 
     def remove_group(self, group):
         for r, c in group:
-            self.board.canvas.delete(self.board.board[r][c]['stone'])
-            if self.board.board[r][c]['label'] is not None:
-                self.board.canvas.delete(self.board.board[r][c]['label'])
-            self.board.board[r][c] = None
+            self.board.canvas.delete(self.board.stones[r][c]['stone'])
+            if self.board.stones[r][c]['label'] is not None:
+                self.board.canvas.delete(self.board.stones[r][c]['label'])
+            self.board.stones[r][c] = None
 
     def get_expected_coords(self, move_number):
         expected_coords = set()
@@ -121,8 +148,7 @@ class GoGame:
 
     def make_move(self, row, col):
         # Check if the position is unoccupied
-        if self.board.board[row][col] is not None:
-            messagebox.showwarning("Invalid move", "That position is occupied.")
+        if self.board.stones[row][col] is not None:
             return 'invalid_move'
 
         # Get expected coordinates for the current move number
@@ -148,7 +174,7 @@ class GoGame:
             self.board.margin + col * self.board.cell_size,
             self.board.margin + row * self.board.cell_size,
             text=str(self.move_number), fill=label_color)
-        self.board.board[row][col] = {'color': self.current_color, 'stone': stone, 'label': label}
+        self.board.stones[row][col] = {'color': self.current_color, 'stone': stone, 'label': label}
 
         # Perform captures
         opponent_color = 'white' if self.current_color == 'black' else 'black'
@@ -158,7 +184,7 @@ class GoGame:
         for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
             nr, nc = row + dr, col + dc
             if 0 <= nr < self.board.size and 0 <= nc < self.board.size:
-                if self.board.board[nr][nc] is not None and self.board.board[nr][nc]['color'] == opponent_color:
+                if self.board.stones[nr][nc] is not None and self.board.stones[nr][nc]['color'] == opponent_color:
                     opponent_group = self.get_group(nr, nc)
                     if not self.has_liberties(opponent_group):
                         self.remove_group(opponent_group)
@@ -174,9 +200,9 @@ class GoGame:
         if not self.has_liberties(own_group):
             # Invalid move: self-capture not allowed
             # Remove the placed stone
-            self.board.canvas.delete(self.board.board[row][col]['stone'])
-            self.board.canvas.delete(self.board.board[row][col]['label'])
-            self.board.board[row][col] = None
+            self.board.canvas.delete(self.board.stones[row][col]['stone'])
+            self.board.canvas.delete(self.board.stones[row][col]['label'])
+            self.board.stones[row][col] = None
             return 'invalid_move'
 
         # The move is valid, proceed
@@ -202,8 +228,8 @@ class GoGame:
                 break  # Found a matching answer
 
         # Display hints for the next expected moves
-        next_expected_coords = self.get_expected_next_coords(self.user_moves)
-        for coord in next_expected_coords:
-            self.hint_items.append(self.board.draw_hint(coord))
+        #next_expected_coords = self.get_expected_next_coords(self.user_moves)
+        #for coord in next_expected_coords:
+            #self.hint_items.append(self.board.draw_hint(coord))
 
         return 'continue'  # 返回'继续'状态
