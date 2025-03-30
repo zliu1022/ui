@@ -22,9 +22,7 @@ class GoGame:
         self.current_problem_index = -1
 
     def load_problems(self):
-        #self.problems = GoProblem.load_problems_from_db({"status": 2, "qtype": "死活题", "level": "9K"})
-        #self.problems = GoProblem.load_problems_from_db({"publicid": 123452})
-        self.problems = GoProblem.load_problems_from_db({"publicid": 123441})
+        self.problems = GoProblem.load_problems_from_db({"status": 2, "qtype": "死活题", "level": "9K"})
         if not self.problems:
             raise Exception("No problems found")
 
@@ -50,15 +48,6 @@ class GoGame:
         self.current_color = 'black' if self.current_problem.blackfirst else 'white'
 
         # Create game board
-        '''
-        if self.current_problem.size == 19:
-            dynamic_size, min_dot = self.current_problem.calculate_range()
-            self.board.change_size(size=dynamic_size+1)
-        else:
-            self.board.change_size(size=self.current_problem.size)
-            min_dot = { 'name': 'left_top'}
-        self.board.draw_board(min_dot)
-        '''
         self.board.draw_board()
 
         # Place preset stones
@@ -74,7 +63,7 @@ class GoGame:
             if first_move is None:
                 print('Warning no answers ty==1 st==2')
                 first_move = 'jj'
-            #self.hint_items.append(self.board.draw_hint(first_move))
+            self.hint_items.append(self.board.draw_hint(first_move))
 
         return {
             'level': self.current_problem.level,
@@ -96,8 +85,6 @@ class GoGame:
 
         self.black_captures = 0
         self.white_captures = 0
-
-        self.board.change_size()
 
     def get_group(self, row, col):
         color = self.board.stones[row][col]['color']
@@ -228,8 +215,8 @@ class GoGame:
                 break  # Found a matching answer
 
         # Display hints for the next expected moves
-        #next_expected_coords = self.get_expected_next_coords(self.user_moves)
-        #for coord in next_expected_coords:
-            #self.hint_items.append(self.board.draw_hint(coord))
+        next_expected_coords = self.get_expected_next_coords(self.user_moves)
+        for coord in next_expected_coords:
+            self.hint_items.append(self.board.draw_hint(coord))
 
         return 'continue'  # 返回'继续'状态

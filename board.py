@@ -23,20 +23,16 @@ class GoBoard:
         self.margin = margin
         self.default_cell_size = (canvas_size - 2 * margin) / (size - 1)
         self.cell_size = self.default_cell_size
+
+        #存放棋子绘图元素
         self.stones = [[None for _ in range(size)] for _ in range(size)]
 
+        #存放棋盘网格线绘图元素，坐标绘图，棋盘角落标识
         self.board = [[None for _ in range(2)] for _ in range(size)]
         self.coord = [[None for _ in range(4)] for _ in range(size)]
         self.corner = [None for _ in range(2)]
 
-    def change_size(self, size=None):
-        if size is not None:
-            self.cell_size = self.default_cell_size * (self.default_size / size)
-            self.size = size
-        else:
-            self.size = 19
-            self.cell_size = self.default_cell_size
-
+    # 清除棋盘网格线
     def clear_board(self):
         for i in range(self.size):
             self.canvas.delete(self.board[i][0])
@@ -55,7 +51,7 @@ class GoBoard:
         self.canvas.delete(self.corner[0])
         self.canvas.delete(self.corner[1])
 
-    #def draw_board(self, min_dot):
+    # 绘制棋盘网格线
     def draw_board(self):
         max_x = self.margin + (self.size - 1) * self.cell_size
         max_y = self.margin + (self.size - 1) * self.cell_size
@@ -66,22 +62,11 @@ class GoBoard:
             # Horizontal lines
             y = self.margin + i * self.cell_size
             self.board[i][1] = self.canvas.create_line(self.margin, y, max_x, y)
-        
-        '''
-        thick_size = 2
-        if min_dot['name'] == 'left_top':
-            self.corner[0] = self.canvas.create_line(self.margin-thick_size, max_y+thick_size, self.margin-thick_size, max_y-5*thick_size)
-            self.corner[1] = self.canvas.create_line(self.margin-thick_size, max_y+thick_size, self.margin+5*thick_size, max_y+thick_size)
-            self.canvas.delete(self.board[self.size-1][0])
-            self.canvas.delete(self.board[0][1])
-        elif min_dot['name'] == 'left_bottom':
-            self.corner[0] = self.canvas.create_line(self.margin-5, self.margin-5, self.margin-5, self.margin+5)
-            self.corner[1] = self.canvas.create_line(self.margin-5, self.margin-5, self.margin+5, self.margin-5)
-        '''
+
         self._draw_coordinates()
 
+    # 绘制棋盘坐标
     def _draw_coordinates(self):
-        """ 绘制棋盘坐标 """
         max_x = self.margin + (self.size - 1) * self.cell_size
         max_y = self.margin + (self.size - 1) * self.cell_size
         
@@ -105,15 +90,16 @@ class GoBoard:
             y_bottom = max_y + 4*self.margin /5
             self.coord[i][3] = self.canvas.create_text(x, y_bottom, text=columns[i])
 
+    # 从pa到15,0
     def coord_to_position(self, coord):
         columns = 'abcdefghijklmnopqrs'[:self.size]
         rows    = 'srqponmlkjihgfedcba'[:self.size]
         print(columns, rows, coord, '->', end=' ')
-        col_letter, row_letter = coord[1], coord[0]
+        col_letter, row_letter = coord[0], coord[1]
         col = columns.index(col_letter)
         row = rows.index(row_letter)
         row = self.size - row - 1  # Adjust row index to match the display
-        print(row, col)
+        print(col, row)
         return row, col
 
     def position_to_coord(self, row, col):
@@ -168,25 +154,6 @@ class GoProblem:
         self.ty = self.problem_data.get('qtype', 'N/A')
 
         self.size = self.problem_data.get('size', 19)
-        if self.size != 19:
-            print(self.size, self.prepos)
-            new_prepos = {}
-            for color in ['b', 'w']:
-                positions = self.prepos.get(color, []) 
-                print(positions)
-                new_pos = ''
-                new_pos_arr = []
-                for pos_str in positions:
-                    columns = 'abcdefghijklmnopqrs'
-                    rows = 'srqponmlkjihgfedcba'
-                    col = columns.index(pos_str[0])
-                    row = rows.index(pos_str[1])
-                    print(pos_str, col, row, '->', self.size-(19-col), self.size - (19-row))
-                    new_pos = rows[self.size - (19-row)] + pos_str[0]
-                    new_pos_arr.append(new_pos)
-                new_prepos.update({color: new_pos_arr})
-            print(new_prepos)
-            self.prepos = new_prepos
 
     @staticmethod
     def load_problems_from_db(criteria):
@@ -197,94 +164,3 @@ class GoProblem:
         problems_data = list(problems_cursor)
         problems = [GoProblem(problem_data) for problem_data in problems_data]
         return problems
-
-    def coord_to_position(self, board_size, coord):
-        columns = 'abcdefghijklmnopqrs'[:board_size]
-        rows    = 'srqponmlkjihgfedcba'[:board_size]
-        col_letter, row_letter = coord[1], coord[0]
-        col = columns.index(col_letter)
-        row = rows.index(row_letter)
-        row = board_size - row - 1  # Adjust row index to match the display
-        return row, col
-
-    def calculate_range(self):
-        BOARD_SIZE = 19
-        pre = { 
-            'min_x':BOARD_SIZE,
-            'min_y':BOARD_SIZE,
-            'max_x':-1,
-            'max_y':-1
-        }   
-        prepos = self.prepos
-        for color in ['b', 'w']:
-            positions = prepos.get(color, []) 
-            for pos_str in positions:
-                y, x = self.coord_to_position(BOARD_SIZE, pos_str)
-                pre['max_x'] = max(pre['max_x'], x)
-                pre['max_y'] = max(pre['max_y'], y)
-                pre['min_x'] = min(pre['min_x'], x)
-                pre['min_y'] = min(pre['min_y'], y)
-
-        ans = { 
-            'min_x':BOARD_SIZE,
-            'min_y':BOARD_SIZE,
-            'max_x':-1,
-            'max_y':-1
-        }
-        # 处理 answers 字段
-        answers = self.answers
-        for idx, answer in enumerate(answers):
-            if answer.get('ty') == 1 and answer.get('st') == 2:
-                positions = answer.get('p', [])
-                for pos_str in positions:
-                    y, x = self.coord_to_position(BOARD_SIZE, pos_str)
-                    ans['max_x'] = max(ans['max_x'], x)
-                    ans['max_y'] = max(ans['max_y'], y)
-                    ans['min_x'] = min(ans['min_x'], x)
-                    ans['min_y'] = min(ans['min_y'], y)
-
-        min_x = min(pre['min_x'], ans['min_x'])
-        min_y = min(pre['min_y'], ans['min_y'])
-        max_x = max(pre['max_x'], ans['max_x'])
-        max_y = max(pre['max_y'], ans['max_y'])
-
-        dots = [
-            {'name': 'left_top',     'x': min_x, 'y': max_y},
-            {'name': 'right_top',    'x': max_x, 'y': max_y},
-            {'name': 'left_bottom',  'x': min_x, 'y': min_y},
-            {'name': 'right_bottom', 'x': max_x, 'y': min_y}
-        ]
-
-        dot_board = [
-            {'name': 'left_top',     'x': 0,            'y': BOARD_SIZE-1},
-            {'name': 'right_top',    'x': BOARD_SIZE-1, 'y': BOARD_SIZE-1},
-            {'name': 'left_bottom',  'x': 0,            'y': 0},
-            {'name': 'right_bottom', 'x': BOARD_SIZE-1, 'y': 0}
-        ]
-
-        import math
-        min_distance = 999
-        min_dot = {}
-        for d in dots:
-            for d_board in dot_board:
-                delta_x = d['x'] - d_board['x']
-                delta_y = d['y'] - d_board['y']
-                new_distance = delta_x * delta_x + delta_y * delta_y
-                if new_distance < min_distance:
-                    min_distance = new_distance
-                    min_dot = {'d': d, 'd_board': d_board}
-        max_distance = -1
-        max_dot = {}
-        for d in dots:
-            delta_x = d['x'] - min_dot['d_board']['x']
-            delta_y = d['y'] - min_dot['d_board']['y']
-            new_distance = delta_x * delta_x + delta_y * delta_y
-            if new_distance > max_distance:
-                max_distance = new_distance
-                max_dot = {'d': d, 'd_board': min_dot['d_board']}
-        
-        #最靠近角：min_dot['d_board'], 从这个角至少, atleast_boardsize+1, 棋盘
-        atleast_boardsize = max(abs(max_dot['d_board']['x'] - max_dot['d']['x']), 
-                                abs(max_dot['d_board']['y'] - max_dot['d']['y']))
-
-        return atleast_boardsize+1, min_dot['d_board']

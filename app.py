@@ -20,7 +20,6 @@ from game import GoGame
 
 class GoApp:
     def __init__(self, root):
-        # 替换为您的MongoDB连接字符串
         client = MongoClient()
         db = client[db_name]
         self.ex_collection = db['ex']
@@ -37,9 +36,8 @@ class GoApp:
         self.canvas = tk.Canvas(self.main_frame, width=self.canvas_size, height=self.canvas_size)
         self.canvas.grid(row=0, column=0, padx=10, pady=10)
 
-        # Create game board
+        # 创建默认 game board，根据具体的题目再进行绘制
         self.board = GoBoard(self.canvas, size=19, canvas_size=self.canvas_size, margin=45)
-        #self.board.draw_board()
 
         # Create game instance
         self.game = GoGame(self.board)
@@ -85,7 +83,7 @@ class GoApp:
             text=message, font=('Arial', 36), fill='black'  # 调整字体大小和颜色
         )
         # 3秒后移除横幅
-        self.root.after(200, self.remove_banner)
+        self.root.after(3000, self.remove_banner)
 
     def remove_banner(self):
         if self.banner:
@@ -98,8 +96,7 @@ class GoApp:
             self.next_problem(self.board)
             self.result_label.config(text='')
         elif self.pending_action_after_banner == 'reset_problem':
-            #self.reset_problem()
-            self.next_problem(self.board)
+            self.reset_problem()
             self.result_label.config(text='')
         self.pending_action_after_banner = None
 
@@ -177,22 +174,6 @@ class GoApp:
             self.game.make_move(next_row, next_col)
             pass
 
-    def record_attempt(self, problem_id, correct, time_taken):
-        # 获取今天的日期字符串
-        today = time.strftime("%Y-%m-%d")
-        attempt = {
-            'problem_id': problem_id,
-            'correct': correct,
-            'time_taken': time_taken,
-        }
-        if today not in self.stats:
-            self.stats[today] = []
-        self.stats[today].append(attempt)
-
-    def get_user_records(self, userid):
-        records = list(self.ex_collection.find({'userid': userid}))
-        return records
-
     def show_error_message(self):
         error_window = tk.Toplevel(self.root)
         error_window.title("Result")
@@ -202,8 +183,8 @@ class GoApp:
     def next_problem(self, board):
         if self.game.current_problem_index < len(self.game.problems) - 1:
             # 加载下一题,临时修改成随机
-            #self.game.load_problem(index=self.game.current_problem_index + 1)
-            ret = self.game.load_problem(board)
+            #self.game.load_problem(index=self.game.current_problem_index + 1) # 顺序加载下一道题目
+            ret = self.game.load_problem(board) # 随机加载下一道题目
             self.update_problem_info()
 
 if __name__ == "__main__":
