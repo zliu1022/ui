@@ -44,3 +44,7 @@ headers_login = {
     "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1"
 }
 
+# Mapping letters to numbers, including 'i'
+letters_a_s = [chr(c) for c in range(ord('a'), ord('s')+1)]
+letter_to_num = {l: i for i, l in enumerate(letters_a_s)} #aa -> 00
+num_to_letter = {i: l for i, l in enumerate(letters_a_s)}

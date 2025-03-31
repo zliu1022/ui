@@ -37,7 +37,10 @@ class GoGame:
             self.current_problem_index = index
             self.current_problem = self.problems[index]
 
+        # 打印题目关键信息
         print(self.current_problem.publicid, self.current_problem.size)
+
+        # 只提取审核完成的正解
         good_answers = []
         for ans in self.current_problem.answers:
             if ans['ty'] == 1 and ans['st'] == 2:

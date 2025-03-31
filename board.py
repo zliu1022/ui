@@ -3,7 +3,7 @@
 
 from pymongo import MongoClient
 from pprint import pprint
-from config import db_name
+from config import db_name, letter_to_num
 
 #棋盘类（GoBoard） ：
 #负责绘制棋盘，管理棋盘状态（例如，哪些位置有棋子，棋子的颜色等）。
@@ -11,11 +11,6 @@ from config import db_name
 #处理棋盘上的事件（如鼠标点击）。
 class GoBoard:
     def __init__(self, canvas, size=19, canvas_size=600, margin=50):
-        # Mapping letters to numbers, including 'i'
-        letters = [chr(c) for c in range(ord('a'), ord('s')+1)]
-        self.letter_to_num = {l: i for i, l in enumerate(letters)} #aa -> 00
-        self.num_to_letter = {i: l for i, l in enumerate(letters)}
-
         self.canvas = canvas
         self.size = size
         self.canvas_size = canvas_size
@@ -103,8 +98,8 @@ class GoBoard:
     # 从aa转换到0,0，不跳过i
     def coord_to_position(self, coord):
         col_letter, row_letter = coord[0], coord[1]
-        col = self.letter_to_num[col_letter]
-        row = self.letter_to_num[row_letter]
+        col = letter_to_num[col_letter]
+        row = letter_to_num[row_letter]
         return row, col
 
     # 绘制棋子
