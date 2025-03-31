@@ -1,28 +1,24 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-#主应用类（App） ：
-#负责初始化Tkinter主窗口，管理主要的GUI组件和事件循环。
-#处理按钮的创建和事件绑定。
-
 import tkinter as tk
 from tkinter import ttk
-
 import datetime
 import time
 from pymongo import MongoClient
 from pprint import pprint
 import random
-
 from config import db_name
 from board import GoBoard
 from game import GoGame
 
+#主应用类（App） ：
+#负责初始化Tkinter主窗口，管理主要的GUI组件和事件循环。
+#处理按钮的创建和事件绑定。
 class GoApp:
     def __init__(self, root):
         client = MongoClient()
         db = client[db_name]
-        self.ex_collection = db['ex']
 
         self.root = root
         self.root.title("Go Problem Viewer")
@@ -32,12 +28,12 @@ class GoApp:
         self.main_frame.pack(fill=tk.BOTH, expand=True)
 
         # Create canvas
-        self.canvas_size = 600
+        self.canvas_size = 350
         self.canvas = tk.Canvas(self.main_frame, width=self.canvas_size, height=self.canvas_size)
         self.canvas.grid(row=0, column=0, padx=10, pady=10)
 
         # 创建默认 game board，根据具体的题目再进行绘制
-        self.board = GoBoard(self.canvas, size=19, canvas_size=self.canvas_size, margin=45)
+        self.board = GoBoard(self.canvas, size=19, canvas_size=self.canvas_size, margin=30)
 
         # Create game instance
         self.game = GoGame(self.board)
@@ -47,12 +43,12 @@ class GoApp:
         self.info_frame = tk.Frame(root)
         self.info_frame.pack(pady=2)
 
-        # Info label
-        self.info_label = tk.Label(self.info_frame, text="", fg='black', font=('Arial', 24))
+        # Info label：显示题目的级别、编号、谁先
+        self.info_label = tk.Label(self.info_frame, text="", fg='black', font=('Arial', 18))
         self.info_label.pack(side='left')
 
-        # Result label
-        self.result_label = tk.Label(self.info_frame, text="", font=('Arial', 28, 'bold'))
+        # Result label：显示做题结果
+        self.result_label = tk.Label(self.info_frame, text="", font=('Arial', 20, 'bold'))
         self.result_label.pack(side='left')
 
         # Bind the click event
@@ -126,7 +122,7 @@ class GoApp:
             'level': self.game.current_problem.level,
             'color': '黑' if self.game.current_problem.blackfirst else '白',
             'problem_no': self.game.current_problem.publicid,
-            'type': self.game.current_problem.ty
+            'type': self.game.current_problem.qtype
         }
         self.root.title(
             f"{problem_info['level']} - {problem_info['type']} - "
@@ -166,28 +162,38 @@ class GoApp:
             self.show_correct_message()
         elif result == 'continue':
             # 游戏继续
+            # 获取全部正解
             next_expected_coords = list(self.game.get_expected_next_coords(self.game.user_moves))
+
+            # 从正解中，随机选择一个最强应对
             if self.cur_answer_index == None:
                 self.cur_answer_index = random.randint(0, len(next_expected_coords) - 1)
             coord = next_expected_coords[self.cur_answer_index]
             next_row, next_col = self.board.coord_to_position(coord)
-            self.game.make_move(next_row, next_col)
+
+            # 下出对手的最强应对
+            result = self.game.make_move(next_row, next_col)
+            # 也可能是对手走完后，题目结束
+            if result == 'correct':
+                self.show_correct_message()
             pass
 
-    def show_error_message(self):
-        error_window = tk.Toplevel(self.root)
-        error_window.title("Result")
-        tk.Label(error_window, text="错误！(Incorrect!)", font=('Arial', 16)).pack(padx=20, pady=20)
-        error_window.after(2000, error_window.destroy)
-
     def next_problem(self, board):
+        ret = self.game.load_problem(board) # 随机加载下一道题目
+        self.update_problem_info()
+        return
         if self.game.current_problem_index < len(self.game.problems) - 1:
-            # 加载下一题,临时修改成随机
-            #self.game.load_problem(index=self.game.current_problem_index + 1) # 顺序加载下一道题目
-            ret = self.game.load_problem(board) # 随机加载下一道题目
+            # 按照顺序加载下一题
+            self.game.load_problem(index=self.game.current_problem_index + 1) # 顺序加载下一道题目
             self.update_problem_info()
+
+# 测试程序，快速显示下一题
+def timer_callback(app):
+    app.next_problem(app.board)
+    root.after(300, timer_callback, app)
 
 if __name__ == "__main__":
     root = tk.Tk()
     app = GoApp(root)
+    #root.after(300, timer_callback, app) # 测试程序，快速显示题目
     root.mainloop()

@@ -47,7 +47,8 @@ class GoGame:
         self.reset_game()
         self.current_color = 'black' if self.current_problem.blackfirst else 'white'
 
-        # Create game board
+        # 根据题目的size，改变棋盘的size，重绘棋盘
+        self.board.change_size(self.current_problem.size)
         self.board.draw_board()
 
         # Place preset stones
@@ -57,11 +58,11 @@ class GoGame:
         first_move = None
         if self.current_problem.answers:
             for ans in self.current_problem.answers:
+                # ty：1正解,2变化,3失败,4淘汰；st：1待审,2审核完成
                 if ans['ty'] == 1 and ans['st'] == 2:
                     first_move = ans['p'][0]
                     break
             if first_move is None:
-                print('Warning no answers ty==1 st==2')
                 first_move = 'jj'
             self.hint_items.append(self.board.draw_hint(first_move))
 
@@ -69,7 +70,7 @@ class GoGame:
             'level': self.current_problem.level,
             'color': '黑' if self.current_problem.blackfirst else '白',
             'problem_no': self.current_problem.publicid,
-            'type': self.current_problem.ty
+            'type': self.current_problem.qtype
         }
 
     def reset_game(self):
@@ -211,7 +212,7 @@ class GoGame:
             if self.user_moves == answer_moves[:len(self.user_moves)]:
                 matched_answers.append(answer)
                 if len(self.user_moves) == len(answer_moves):
-                    return 'correct'  # 返回'正确'状态
+                    return 'correct'
                 break  # Found a matching answer
 
         # Display hints for the next expected moves
