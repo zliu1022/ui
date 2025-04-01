@@ -7,6 +7,7 @@
 
 import random
 from board import GoProblem, GoBoard
+from config import full_board_size
 
 class GoGame:
     def __init__(self, board):
@@ -40,19 +41,46 @@ class GoGame:
         # 打印题目关键信息
         print(self.current_problem.publicid, self.current_problem.size)
 
-        # 只提取审核完成的正解
-        good_answers = []
+        # ty：1正解,2变化,3失败,4淘汰；st：1待审,2审核完成
+        best_answers = [] # 审核完成的正解
+        good_answers = [] # 没审核完成的正解
         for ans in self.current_problem.answers:
             if ans['ty'] == 1 and ans['st'] == 2:
+                best_answers.append(ans)
+            if ans['ty'] == 1 and ans['st'] == 1:
                 good_answers.append(ans)
-        self.current_problem.answers = good_answers
+        if len(best_answers) > 0:
+            self.current_problem.answers = best_answers
+        elif len(good_answers) > 0:
+            self.current_problem.answers = good_answers
+        else:
+            print('Warning: No Answer')
 
         self.reset_game()
         self.current_color = 'black' if self.current_problem.blackfirst else 'white'
 
         # 根据题目的size，改变棋盘的size，重绘棋盘
-        self.board.change_size(self.current_problem.size)
-        self.board.draw_board()
+        if self.current_problem.size == full_board_size:
+            # 19路棋盘，考虑绘制棋盘局部
+            self.board.change_size(full_board_size)
+
+            # Get board extent needed for the problem
+            min_row, max_row, min_col, max_col = self.current_problem.get_board_extent()
+
+            # Optionally, expand the area to include an extra row and column for better visibility
+            view_distance = 2
+            min_row = max(0, min_row - view_distance)
+            min_col = max(0, min_col - view_distance)
+            max_row = min(self.board.size - 1, max_row + view_distance)
+            max_col = min(self.board.size - 1, max_col + view_distance)
+
+            # Draw the board with the given extents
+            self.board.draw_board(min_row=min_row, max_row=max_row, min_col=min_col, max_col=max_col)
+        else:
+            # 非19路棋盘，按照具体路数绘制整个棋盘
+            min_row, max_row, min_col, max_col = 0, self.current_problem.size-1, 0, self.current_problem.size-1
+            self.board.change_size(self.current_problem.size)
+            self.board.draw_board(min_row=min_row, max_row=max_row, min_col=min_col, max_col=max_col)
 
         # Place preset stones
         self.board.place_preset_stones(self.current_problem.prepos)
@@ -61,13 +89,8 @@ class GoGame:
         first_move = None
         if self.current_problem.answers:
             for ans in self.current_problem.answers:
-                # ty：1正解,2变化,3失败,4淘汰；st：1待审,2审核完成
-                if ans['ty'] == 1 and ans['st'] == 2:
-                    first_move = ans['p'][0]
-                    break
-            if first_move is None:
-                first_move = 'jj'
-            self.hint_items.append(self.board.draw_hint(first_move))
+                first_move = ans['p'][0]
+                self.hint_items.append(self.board.draw_hint(first_move))
 
         return {
             'level': self.current_problem.level,
@@ -160,11 +183,7 @@ class GoGame:
 
         # Place the stone tentatively
         stone = self.board.draw_stone(row, col, self.current_color)
-        label_color = 'white' if self.current_color == 'black' else 'black'
-        label = self.board.canvas.create_text(
-            self.board.margin + col * self.board.cell_size,
-            self.board.margin + row * self.board.cell_size,
-            text=str(self.move_number), fill=label_color)
+        label = self.board.draw_stone_number(row, col, self.current_color, self.move_number)
         self.board.stones[row][col] = {'color': self.current_color, 'stone': stone, 'label': label}
 
         # Perform captures

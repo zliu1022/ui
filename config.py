@@ -48,3 +48,5 @@ headers_login = {
 letters_a_s = [chr(c) for c in range(ord('a'), ord('s')+1)]
 letter_to_num = {l: i for i, l in enumerate(letters_a_s)} #aa -> 00
 num_to_letter = {i: l for i, l in enumerate(letters_a_s)}
+
+full_board_size = 19

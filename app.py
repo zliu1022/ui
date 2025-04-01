@@ -8,7 +8,7 @@ import time
 from pymongo import MongoClient
 from pprint import pprint
 import random
-from config import db_name
+from config import db_name, full_board_size
 from board import GoBoard
 from game import GoGame
 
@@ -33,7 +33,7 @@ class GoApp:
         self.canvas.grid(row=0, column=0, padx=10, pady=10)
 
         # 创建默认 game board，根据具体的题目再进行绘制
-        self.board = GoBoard(self.canvas, size=19, canvas_size=self.canvas_size, margin=30)
+        self.board = GoBoard(self.canvas, size=full_board_size, canvas_size=self.canvas_size, margin=30)
 
         # Create game instance
         self.game = GoGame(self.board)
@@ -58,9 +58,6 @@ class GoApp:
         self.banner = None
         self.banner_text = None
         self.pending_action_after_banner = None
-
-        # 随机选择的答案
-        self.cur_answer_index = None
 
         # Load the initial problem
         self.next_problem(self.board)
@@ -114,7 +111,6 @@ class GoApp:
         # 重新加载当前题目
         self.game.load_problem(self.board, index=self.game.current_problem_index)
         self.update_problem_info()
-        self.cur_answer_index = None
 
     def update_problem_info(self):
         """更新题目信息显示"""
@@ -144,8 +140,8 @@ class GoApp:
         # Calculate approximate grid position from click
         col_click = x_click / self.board.cell_size
         row_click = y_click / self.board.cell_size
-        col = int(round(col_click))
-        row = int(round(row_click))
+        col = int(round(col_click)) + self.board.min_col
+        row = int(round(row_click)) + self.board.min_row
 
         if not (0 <= row < self.board.size and 0 <= col < self.board.size):
             # Click is outside the board grid
@@ -166,9 +162,8 @@ class GoApp:
             next_expected_coords = list(self.game.get_expected_next_coords(self.game.user_moves))
 
             # 从正解中，随机选择一个最强应对
-            if self.cur_answer_index == None:
-                self.cur_answer_index = random.randint(0, len(next_expected_coords) - 1)
-            coord = next_expected_coords[self.cur_answer_index]
+            random_answer_index = random.randint(0, len(next_expected_coords) - 1)
+            coord = next_expected_coords[random_answer_index]
             next_row, next_col = self.board.coord_to_position(coord)
 
             # 下出对手的最强应对
