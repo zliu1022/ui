@@ -28,6 +28,7 @@ class GoBoard:
 
         #存放棋盘网格线绘图元素，坐标绘图
         self.board = [[None for _ in range(2)] for _ in range(full_board_size)]
+        self.board_border = [None for _ in range(4)]
         self.coord = [[None for _ in range(4)] for _ in range(full_board_size)]
 
     # 根据题目中的size改变棋盘大小，边缘、格子大小也按比例变化
@@ -53,6 +54,10 @@ class GoBoard:
                 if self.board[i][j] is not None:
                     self.canvas.delete(self.board[i][j])
                     self.board[i][j] = None
+        for i in range(4):
+            if self.board_border[i] is not None:
+                self.canvas.delete(self.board_border[i])
+                self.board_border[i] = None
         # 清除棋盘坐标
         for i in range(full_board_size):
             for j in range(4):
@@ -89,6 +94,22 @@ class GoBoard:
         for idx_row in range(num_rows):
             y = self.margin + idx_row * self.cell_size
             self.board[idx_row][1] = self.canvas.create_line(self.margin, y, max_x, y)
+
+        # Draw border lines if the view includes board edges
+        border_width = 1
+        border_gap = 2
+        # Top border
+        if self.min_row == 0:
+            self.board_border[0] = self.canvas.create_line(self.margin-2*border_gap, self.margin-2*border_gap, max_x+2*border_gap, self.margin-2*border_gap, width=border_width)
+        # Bottom border
+        if self.max_row == self.size - 1:
+            self.board_border[1] = self.canvas.create_line(self.margin-2*border_gap, max_y+2*border_gap, max_x+2*border_gap, max_y+2*border_gap, width=border_width)
+        # Left border
+        if self.min_col == 0:
+            self.board_border[2] = self.canvas.create_line(self.margin-2*border_gap, self.margin-2*border_gap, self.margin-2*border_gap, max_y+2*border_gap, width=border_width)
+        # Right border
+        if self.max_col == self.size - 1:
+            self.board_border[3] = self.canvas.create_line(max_x+2*border_gap, self.margin-2*border_gap, max_x+2*border_gap, max_y+2*border_gap, width=border_width)
 
         self._draw_coordinates(max_x, max_y)
 
