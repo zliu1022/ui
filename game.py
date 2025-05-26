@@ -7,6 +7,7 @@
 
 import random
 from board import GoProblem, GoBoard
+from pprint import pprint
 from config import full_board_size
 
 class GoGame:
@@ -39,7 +40,7 @@ class GoGame:
             self.current_problem = self.problems[index]
 
         # 打印题目关键信息
-        print(self.current_problem.publicid, self.current_problem.size)
+        print(f'{self.current_problem_index}th {self.current_problem.publicid} {self.current_problem.size}')
 
         # ty：1正解,2变化,3失败,4淘汰；st：1待审,2审核完成
         best_answers = [] # 审核完成的正解
@@ -54,7 +55,8 @@ class GoGame:
         elif len(good_answers) > 0:
             self.current_problem.answers = good_answers
         else:
-            print('Warning: No Answer')
+            p = self.current_problem
+            print(f'Warning: No Answer, {p.qtype} {p.level} {len(p.options)}')
 
         self.reset_game()
         self.current_color = 'black' if self.current_problem.blackfirst else 'white'

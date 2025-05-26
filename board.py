@@ -161,6 +161,7 @@ class GoBoard:
 
     # 绘制答案位置的提示标志
     def draw_hint(self, coord):
+        if coord == "zz": return # 脱先
         row, col = self.coord_to_position(coord)
         x, y = self.position_to_canvas(row, col)
         r = self.cell_size / 2 - 2
@@ -181,7 +182,11 @@ class GoBoard:
     def place_preset_stones(self, prepos):
         for color, positions in prepos.items():
             for coord in positions:
+                if coord == 'zz': continue #脱先
                 row, col = self.coord_to_position(coord)
+                if self.stones[row][col] is not None: #初始位置棋子出现重复
+                    print('Warning: stone already drawn', row, col)
+                    continue
                 x, y = self.position_to_canvas(row, col)
                 r = self.cell_size / 2 - 2
                 stone_color = 'black' if color == 'b' else 'white'
@@ -201,13 +206,14 @@ class GoProblem:
         self.publicid = self.problem_data.get('publicid', 'N/A')
         self.qtype = self.problem_data.get('qtype', 'N/A')
         self.size = self.problem_data.get('size', full_board_size)
+        self.options = self.problem_data.get('options', [])
 
     @staticmethod
     def load_problems_from_db(criteria):
         client = MongoClient('mongodb://localhost:27017/')
         db = client[db_name]
         collection = db['q']
-        problems_cursor = collection.find(criteria)
+        problems_cursor = collection.find(criteria).sort('_id', 1)
         problems_data = list(problems_cursor)
         problems = [GoProblem(problem_data) for problem_data in problems_data]
         return problems
@@ -219,6 +225,7 @@ class GoProblem:
         # Positions from prepos
         for color, coords in self.prepos.items():
             for coord in coords:
+                if coord == "zz": continue # 脱先
                 col_char, row_char = coord[0], coord[1]
                 col_index = letter_to_num[col_char]
                 row_index = letter_to_num[row_char]
@@ -227,6 +234,8 @@ class GoProblem:
         # Positions from answers
         for answer in self.answers:
             for coord in answer['p']:
+                if coord == "zz": continue # 脱先
+                if coord == "tt": continue # pass
                 col_char, row_char = coord[0], coord[1]
                 col_index = letter_to_num[col_char]
                 row_index = letter_to_num[row_char]

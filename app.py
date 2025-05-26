@@ -179,16 +179,19 @@ class GoApp:
         return
         if self.game.current_problem_index < len(self.game.problems) - 1:
             # 按照顺序加载下一题
-            self.game.load_problem(index=self.game.current_problem_index + 1) # 顺序加载下一道题目
+            self.game.load_problem(board, index=self.game.current_problem_index + 1) # 顺序加载下一道题目
             self.update_problem_info()
 
 # 测试程序，快速显示下一题
 def timer_callback(app):
+    global show_interval;
     app.next_problem(app.board)
-    root.after(300, timer_callback, app)
+    root.after(show_interval, timer_callback, app)
 
 if __name__ == "__main__":
+    global show_interval;
+    show_interval = 300;
     root = tk.Tk()
     app = GoApp(root)
-    #root.after(300, timer_callback, app) # 测试程序，快速显示题目
+    root.after(show_interval, timer_callback, app) # 测试程序，快速显示题目
     root.mainloop()
