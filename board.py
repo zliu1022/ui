@@ -3,7 +3,7 @@
 
 from pymongo import MongoClient
 from pprint import pprint
-from config import db_name, letter_to_num, full_board_size
+from config import db_name, letter_to_num, full_board_size, num_to_letter
 
 #棋盘类（GoBoard） ：
 #负责绘制棋盘，管理棋盘状态（例如，哪些位置有棋子，棋子的颜色等）。
@@ -139,6 +139,10 @@ class GoBoard:
         col = letter_to_num[col_letter]
         row = letter_to_num[row_letter]
         return row, col
+
+    def position_to_coord(self, row, col):
+        coord = num_to_letter[col] + num_to_letter[row]
+        return coord
 
     # 从0,0到画布像素坐标
     def position_to_canvas(self, row, col):

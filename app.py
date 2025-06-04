@@ -11,15 +11,15 @@ import random
 from config import db_name, full_board_size
 from board import GoBoard
 from game import GoGame
+from tkinter import messagebox
+from matchq import canonicalize_positions
+import json
 
 #主应用类（App） ：
 #负责初始化Tkinter主窗口，管理主要的GUI组件和事件循环。
 #处理按钮的创建和事件绑定。
 class GoApp:
     def __init__(self, root):
-        client = MongoClient()
-        db = client[db_name]
-
         self.root = root
         self.root.title("Go Problem Viewer")
 
@@ -50,6 +50,14 @@ class GoApp:
         # Result label：显示做题结果
         self.result_label = tk.Label(self.info_frame, text="", font=('Arial', 20, 'bold'))
         self.result_label.pack(side='left')
+
+        # 按钮框架
+        self.button_frame = tk.Frame(root)
+        self.button_frame.pack(pady=2)
+
+        # 创建“搜索”按钮
+        self.search_button = tk.Button(self.button_frame, text="搜索", command=self.on_search_click)
+        self.search_button.pack(side='left')
 
         # Bind the click event
         self.canvas.bind("<Button-1>", self.on_board_click)
@@ -182,6 +190,144 @@ class GoApp:
             self.game.load_problem(board, index=self.game.current_problem_index + 1) # 顺序加载下一道题目
             self.update_problem_info()
 
+    def on_search_click(self):
+        # 创建一个新的顶级窗口
+        self.search_window = tk.Toplevel(self.root)
+        self.search_window.title("搜索题目")
+
+        # 设置窗口大小
+        self.search_window.geometry("600x700")
+
+        # 创建搜索棋盘的画布
+        canvas_size = 600
+        self.search_canvas = tk.Canvas(self.search_window, width=canvas_size, height=canvas_size)
+        self.search_canvas.pack()
+
+        # 创建一个新的GoBoard实例用于搜索棋盘
+        self.search_board = GoBoard(self.search_canvas, size=19, canvas_size=canvas_size, margin=30)
+        self.search_board.draw_board()
+
+        # 绑定左键和右键点击事件
+        self.search_canvas.bind("<Button-1>", self.on_search_board_left_click)
+        self.search_canvas.bind("<Button-3>", self.on_search_board_right_click)
+
+        # 创建提示标签
+        self.prompt_label = tk.Label(self.search_window, text="左键黑子，右键白子")
+        self.prompt_label.pack()
+
+        # 创建“搜索”和“取消”按钮
+        button_frame = tk.Frame(self.search_window)
+        button_frame.pack(pady=2)
+
+        search_button = tk.Button(button_frame, text="搜索", command=self.on_search_board_search)
+        search_button.pack(side='left', padx=5)
+
+        cancel_button = tk.Button(button_frame, text="取消", command=self.on_search_board_cancel)
+        cancel_button.pack(side='left', padx=5)
+
+    # 左键点击事件
+    def on_search_board_left_click(self, event):
+        self.on_search_board_click(event, left_click=True)
+
+    # 右键点击事件
+    def on_search_board_right_click(self, event):
+        self.on_search_board_click(event, left_click=False)
+
+    def on_search_board_click(self, event, left_click=True):
+        x_click = event.x - self.search_board.margin
+        y_click = event.y - self.search_board.margin
+        if (x_click < -self.search_board.cell_size / 2 or y_click < -self.search_board.cell_size / 2 or
+            x_click > self.search_board.canvas_size - self.search_board.margin or y_click > self.search_board.canvas_size - self.search_board.margin):
+            # Click outside the board area
+            return
+
+        # Calculate approximate grid position from click
+        col_click = x_click / self.search_board.cell_size
+        row_click = y_click / self.search_board.cell_size
+        col = int(round(col_click))
+        row = int(round(row_click))
+
+        if not (0 <= row < self.search_board.size and 0 <= col < self.search_board.size):
+            # Click is outside the board grid
+            return
+
+        stone = self.search_board.stones[row][col]
+        if left_click:
+            if stone is None or stone['color'] == 'white':
+                # Place black stone
+                if stone:
+                    # Remove the existing white stone
+                    self.search_board.canvas.delete(stone['stone'])
+                    self.search_board.stones[row][col] = None
+                # Draw black stone
+                stone_obj = self.search_board.draw_stone(row, col, 'black')
+                self.search_board.stones[row][col] = {'color': 'black', 'stone': stone_obj, 'label': None}
+            elif stone['color'] == 'black':
+                # Remove black stone
+                self.search_board.canvas.delete(stone['stone'])
+                self.search_board.stones[row][col] = None
+        else:  # Right-click
+            if stone is None or stone['color'] == 'black':
+                # Place white stone
+                if stone:
+                    # Remove the existing black stone
+                    self.search_board.canvas.delete(stone['stone'])
+                    self.search_board.stones[row][col] = None
+                # Draw white stone
+                stone_obj = self.search_board.draw_stone(row, col, 'white')
+                self.search_board.stones[row][col] = {'color': 'white', 'stone': stone_obj, 'label': None}
+            elif stone['color'] == 'white':
+                # Remove white stone
+                self.search_board.canvas.delete(stone['stone'])
+                self.search_board.stones[row][col] = None
+
+    def on_search_board_search(self):
+        # Build 'prepos' from stones on search_board
+        prepos = {'b': [], 'w': []}
+        for row in range(self.search_board.size):
+            for col in range(self.search_board.size):
+                stone = self.search_board.stones[row][col]
+                if stone:
+                    coord = self.search_board.position_to_coord(row, col)
+                    if stone['color'] == 'black':
+                        prepos['b'].append(coord)
+                    else:  # 'white'
+                        prepos['w'].append(coord)
+
+        # 将坐标列表排序，以便与数据库中的数据进行比较
+        prepos['b'].sort()
+        prepos['w'].sort()
+        pprint(prepos)
+
+        stones_key = canonicalize_positions(prepos)
+        stones_key_list = [list(item) for item in stones_key]
+        stones_key_json = json.dumps(stones_key_list, sort_keys=True)
+        print(stones_key_json)
+
+        # 连接到MongoDB数据库
+        client = MongoClient()
+        db = client[db_name]
+        collection = db['q']
+
+        # 执行查询
+        doc = collection.find_one({'min_pp': stones_key_json})
+        if doc:
+            message = "找到" + str(doc.get('_id'))
+            print(doc.get('publicid'))
+            print(doc.get('status'))
+            print(doc.get('level'))
+            print(doc.get('qtype'))
+            print(doc.get('version'))
+            print(doc.get('title'))
+        else:
+            message = "找不到"
+
+        # 显示提示信息
+        tk.messagebox.showinfo("搜索结果", message, parent=self.search_window)
+
+    def on_search_board_cancel(self):
+        self.search_window.destroy()
+
 # 测试程序，快速显示下一题
 def timer_callback(app):
     global show_interval;
@@ -193,5 +339,5 @@ if __name__ == "__main__":
     show_interval = 300;
     root = tk.Tk()
     app = GoApp(root)
-    root.after(show_interval, timer_callback, app) # 测试程序，快速显示题目
+    #root.after(show_interval, timer_callback, app) # 测试程序，快速显示题目
     root.mainloop()
