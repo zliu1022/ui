@@ -23,8 +23,8 @@ class GoGame:
         self.current_problem = None
         self.current_problem_index = -1
 
-    def load_problems(self):
-        self.problems = GoProblem.load_problems_from_db({"status": 2, "qtype": "死活题", "level": "9K"})
+    def load_problems(self, criteria):
+        self.problems = GoProblem.load_problems_from_db(criteria)
         if not self.problems:
             raise Exception("No problems found")
 

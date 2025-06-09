@@ -20,6 +20,9 @@ import json
 #处理按钮的创建和事件绑定。
 class GoApp:
     def __init__(self, root):
+        client = MongoClient()
+        self.db = client[db_name]
+
         self.root = root
         self.root.title("Go Problem Viewer")
 
@@ -37,7 +40,7 @@ class GoApp:
 
         # Create game instance
         self.game = GoGame(self.board)
-        self.game.load_problems()
+        self.game.load_problems({"status": 2, "qtype": "死活题", "level": "9K"})
 
         # 创建一个容器 Frame，用于放置 info_label 和 result_label
         self.info_frame = tk.Frame(root)
@@ -196,10 +199,10 @@ class GoApp:
         self.search_window.title("搜索题目")
 
         # 设置窗口大小
-        self.search_window.geometry("600x700")
+        self.search_window.geometry("400x450")
 
         # 创建搜索棋盘的画布
-        canvas_size = 600
+        canvas_size = 350
         self.search_canvas = tk.Canvas(self.search_window, width=canvas_size, height=canvas_size)
         self.search_canvas.pack()
 
@@ -214,6 +217,10 @@ class GoApp:
         # 创建提示标签
         self.prompt_label = tk.Label(self.search_window, text="左键黑子，右键白子")
         self.prompt_label.pack()
+
+        # 创建匹配数量的标签
+        self.match_count_label = tk.Label(self.search_window, text="当前匹配的棋形数：0")
+        self.match_count_label.pack()
 
         # 创建“搜索”和“取消”按钮
         button_frame = tk.Frame(self.search_window)
@@ -281,8 +288,10 @@ class GoApp:
                 self.search_board.canvas.delete(stone['stone'])
                 self.search_board.stones[row][col] = None
 
-    def on_search_board_search(self):
-        # Build 'prepos' from stones on search_board
+        # 更新匹配数量
+        self.update_matching_count()
+
+    def calc_search_board_min_pp_list(self):
         prepos = {'b': [], 'w': []}
         for row in range(self.search_board.size):
             for col in range(self.search_board.size):
@@ -297,28 +306,66 @@ class GoApp:
         # 将坐标列表排序，以便与数据库中的数据进行比较
         prepos['b'].sort()
         prepos['w'].sort()
-        pprint(prepos)
 
         stones_key = canonicalize_positions(prepos)
         stones_key_list = [list(item) for item in stones_key]
-        stones_key_json = json.dumps(stones_key_list, sort_keys=True)
-        print(stones_key_json)
+        return stones_key_list
 
-        # 连接到MongoDB数据库
-        client = MongoClient()
-        db = client[db_name]
-        collection = db['q']
+    def update_matching_count(self):
+        collection = self.db['q_search']
+
+        min_pp_list = self.calc_search_board_min_pp_list()
+        if len(min_pp_list) == 0:
+            return
+
+        stones_list = []
+        stones_bw_list = [] #黑白交换
+        for entry in min_pp_list:
+            stones_list.append(f"{entry[0]}-{entry[1]}-{entry[2]}")
+            stones_bw_list.append(f"{'w' if entry[0] == 'b' else 'b'}-{entry[1]}-{entry[2]}")
+
+        query = {'min_pp_list': {'$all': stones_list}}
+        count = collection.count_documents(query)
+        query_bw = {'min_pp_list': {'$all': stones_bw_list}}
+        count_bw = collection.count_documents(query_bw)
+
+        # Update the label
+        message = f"当前匹配的棋形数：黑白正常{count} 黑白交换{count_bw}"
+        self.match_count_label.config(text=message)
+
+        print(message)
+        if count<=5 and count>0:
+            print('黑白正常')
+            self.print_q_min_pp_list(query)
+        if count_bw<=5 and count_bw>0:
+            print('黑白交换')
+            self.print_q_min_pp_list(query_bw)
+        if count>0 or count_bw>0:
+            print('--------')
+
+    def print_q_min_pp_list(self, query):
+        collection = self.db['q_search']
+        col_q = self.db['q']
+
+        docs = collection.find(query)
+        for doc in docs:
+            ret = col_q.find_one({'min_pp': doc.get('min_pp')})
+            print(ret.get('publicid'), ret.get('status'), ret.get('level'), ret.get('qtype'), ret.get('title'), ret.get('_id'), ret.get('min_pp'))
+
+    def on_search_board_search(self):
+        min_pp_list = self.calc_search_board_min_pp_list()
+        min_pp = json.dumps(min_pp_list, sort_keys=True)
+
+        collection = self.db['q']
 
         # 执行查询
-        doc = collection.find_one({'min_pp': stones_key_json})
+        doc = collection.find_one({'min_pp': min_pp})
         if doc:
-            message = "找到" + str(doc.get('_id'))
-            print(doc.get('publicid'))
-            print(doc.get('status'))
-            print(doc.get('level'))
-            print(doc.get('qtype'))
-            print(doc.get('version'))
-            print(doc.get('title'))
+            message = "找到"
+            message = message + str(doc.get('_id')) + ' '
+            print(doc.get('publicid'), doc.get('status'), doc.get('level'), doc.get('qtype'), doc.get('title'), doc.get('version'))
+            self.game.load_problems(criteria={'_id': doc.get('_id')})
+            self.next_problem(self.board)
         else:
             message = "找不到"
 
