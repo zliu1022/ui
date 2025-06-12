@@ -9,9 +9,9 @@ from pymongo import MongoClient
 from pprint import pprint
 import random
 from config import db_name, full_board_size
-from board import GoBoard
+from board import GoProblem, GoBoard
 from game import GoGame
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 from matchq import canonicalize_positions
 import json
 
@@ -72,6 +72,9 @@ class GoApp:
 
         # Load the initial problem
         self.next_problem(self.board)
+        
+        # 搜索功能：动态匹配到的Top30题目
+        self.matching_problems = []
 
     def show_message_on_board(self, message):
         # 创建上方横幅的矩形，高度为棋盘的1/4
@@ -194,9 +197,18 @@ class GoApp:
             self.update_problem_info()
 
     def on_search_click(self):
-        # 创建一个新的顶级窗口
+        # 创建一个新的顶级窗口:搜索输入
         self.search_window = tk.Toplevel(self.root)
         self.search_window.title("搜索题目")
+
+        # 在设置完搜索窗口的内容后，更新其布局以获取正确的尺寸
+        self.search_window.update_idletasks()
+
+        # 获取搜索窗口的位置和尺寸
+        x = self.search_window.winfo_x()
+        y = self.search_window.winfo_y()
+        width = self.search_window.winfo_width()
+        height = self.search_window.winfo_height()
 
         # 设置窗口大小
         self.search_window.geometry("400x450")
@@ -222,15 +234,36 @@ class GoApp:
         self.match_count_label = tk.Label(self.search_window, text="当前匹配的棋形数：0")
         self.match_count_label.pack()
 
-        # 创建“搜索”和“取消”按钮
+        # 创建“取消”按钮
         button_frame = tk.Frame(self.search_window)
         button_frame.pack(pady=2)
 
-        search_button = tk.Button(button_frame, text="搜索", command=self.on_search_board_search)
-        search_button.pack(side='left', padx=5)
-
         cancel_button = tk.Button(button_frame, text="取消", command=self.on_search_board_cancel)
         cancel_button.pack(side='left', padx=5)
+
+        # 创建一个新的顶级窗口:搜索结果
+        self.search_result_window = tk.Toplevel(self.search_window)
+        self.search_result_window.title("搜索结果")
+
+        # 设置搜索结果窗口的位置，使其紧贴在搜索窗口的右边
+        self.search_result_window.geometry(f"600x1000+{x + 2*width}+{y}")
+
+        # 创建显示匹配题目的框架，包含滚动条
+        self.matches_frame = tk.Frame(self.search_result_window)
+        self.matches_frame.pack(side='right', fill=tk.BOTH, expand=True)
+
+        # 创建滚动条
+        self.matches_canvas = tk.Canvas(self.matches_frame)
+        scrollbar = tk.Scrollbar(self.matches_frame, orient="vertical", command=self.matches_canvas.yview)
+        self.scrollable_frame = tk.Frame(self.matches_canvas)
+
+        self.scrollable_frame.bind("<Configure>", lambda e: self.matches_canvas.configure(scrollregion=self.matches_canvas.bbox("all")))
+
+        self.matches_canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        self.matches_canvas.configure(yscrollcommand=scrollbar.set)
+
+        self.matches_canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
 
     # 左键点击事件
     def on_search_board_left_click(self, event):
@@ -313,6 +346,7 @@ class GoApp:
 
     def update_matching_count(self):
         collection = self.db['q_search']
+        col_q = self.db['q']
 
         min_pp_list = self.calc_search_board_min_pp_list()
         if len(min_pp_list) == 0:
@@ -324,24 +358,58 @@ class GoApp:
             stones_list.append(f"{entry[0]}-{entry[1]}-{entry[2]}")
             stones_bw_list.append(f"{'w' if entry[0] == 'b' else 'b'}-{entry[1]}-{entry[2]}")
 
+        #匹配数量
+        start_time = time.time()
         query = {'min_pp_list': {'$all': stones_list}}
         count = collection.count_documents(query)
         query_bw = {'min_pp_list': {'$all': stones_bw_list}}
         count_bw = collection.count_documents(query_bw)
+        end_time = time.time()
+        print(f'$all {end_time-start_time:.2f}s {count} {count_bw}', end=' ')
+
+        # 匹配Top30
+        start_time = time.time()
+        pipeline = [
+            {'$match': {'min_pp_list': {'$all': stones_list}}},
+            {'$addFields': {'min_pp_list_size': {'$size': '$min_pp_list'}}},
+            {'$sort': {'min_pp_list_size': 1}},
+            {'$limit': 30}
+        ]
+        matching_docs = list(collection.aggregate(pipeline))
+        pipeline_bw = [
+            {'$match': {'min_pp_list': {'$all': stones_bw_list}}},
+            {'$addFields': {'min_pp_list_size': {'$size': '$min_pp_list'}}},
+            {'$sort': {'min_pp_list_size': 1}},
+            {'$limit': 30}
+        ]
+        matching_docs_bw = list(collection.aggregate(pipeline_bw))
+        end_time = time.time()
+        print(f'$match {end_time-start_time:.2f}s {len(matching_docs)} {len(matching_docs_bw)}')
+
+        # Combine and retrieve matching problems
+        matching_docs_combined = matching_docs + matching_docs_bw
+        if len(matching_docs_combined)<=0:
+            return
+        matching_docs_combined.sort(key=lambda doc: doc.get('min_pp_list_size', ''))
+        top_matches = matching_docs_combined[:max(30, len(matching_docs_combined))]
+
+        # Retrieve full problem documents
+        col_q = self.db['q']
+        problems = []
+        for doc in top_matches:
+            problem = col_q.find_one({'min_pp': doc.get('min_pp')})
+            if problem:
+                problems.append(problem)
+
+        # Sort problems by the length of min_pp string # Keep top 30
+        self.matching_problems = problems[:30]
 
         # Update the label
         message = f"当前匹配的棋形数：黑白正常{count} 黑白交换{count_bw}"
         self.match_count_label.config(text=message)
 
-        print(message)
-        if count<=5 and count>0:
-            print('黑白正常')
-            self.print_q_min_pp_list(query)
-        if count_bw<=5 and count_bw>0:
-            print('黑白交换')
-            self.print_q_min_pp_list(query_bw)
-        if count>0 or count_bw>0:
-            print('--------')
+        # Update the matching problems display
+        self.update_matching_display()
 
     def print_q_min_pp_list(self, query):
         collection = self.db['q_search']
@@ -352,27 +420,70 @@ class GoApp:
             ret = col_q.find_one({'min_pp': doc.get('min_pp')})
             print(ret.get('publicid'), ret.get('status'), ret.get('level'), ret.get('qtype'), ret.get('title'), ret.get('_id'), ret.get('min_pp'))
 
-    def on_search_board_search(self):
-        min_pp_list = self.calc_search_board_min_pp_list()
-        min_pp = json.dumps(min_pp_list, sort_keys=True)
-
-        collection = self.db['q']
-
-        # 执行查询
-        doc = collection.find_one({'min_pp': min_pp})
-        if doc:
-            message = "找到"
-            message = message + str(doc.get('_id')) + ' '
-            print(doc.get('publicid'), doc.get('status'), doc.get('level'), doc.get('qtype'), doc.get('title'), doc.get('version'))
-            self.game.load_problems(criteria={'_id': doc.get('_id')})
-            self.next_problem(self.board)
-        else:
-            message = "找不到"
-
-        # 显示提示信息
-        tk.messagebox.showinfo("搜索结果", message, parent=self.search_window)
-
     def on_search_board_cancel(self):
+        self.search_window.destroy()
+
+    def update_matching_display(self):
+        # 清空之前的显示内容
+        for widget in self.scrollable_frame.winfo_children():
+            widget.destroy()
+
+        # 设置每行显示的列数
+        columns = 3
+        canvas_size = int(self.search_board.canvas_size / 2)  # 图形尺寸为搜索棋盘的一半
+
+        for index, problem in enumerate(self.matching_problems):
+            row = index // columns
+            col = index % columns
+
+            # 创建一个容器 Frame，包含棋盘和信息
+            problem_frame = tk.Frame(self.scrollable_frame)
+            problem_frame.grid(row=row, column=col, padx=5, pady=5)
+
+            # 创建棋盘画布
+            problem_canvas = tk.Canvas(problem_frame, width=canvas_size, height=canvas_size)
+            problem_canvas.pack()
+
+            # 创建小尺寸的 GoBoard 和 GoGame 实例
+            mini_board = GoBoard(problem_canvas, size=problem.get('size', 19), canvas_size=canvas_size, margin=15)
+            mini_game = GoGame(mini_board)
+
+            # 加载题目到棋盘中
+            mini_game.current_problem = GoProblem(problem)
+            mini_game.reset_game()
+            mini_game.current_color = 'black' if mini_game.current_problem.blackfirst else 'white'
+
+            # 调整棋盘尺寸，显示局部棋盘
+            if mini_game.current_problem.size == full_board_size:
+                min_row, max_row, min_col, max_col = mini_game.current_problem.get_board_extent()
+                view_distance = 2
+                min_row = max(0, min_row - view_distance)
+                min_col = max(0, min_col - view_distance)
+                max_row = min(mini_board.size - 1, max_row + view_distance)
+                max_col = min(mini_board.size - 1, max_col + view_distance)
+                mini_board.draw_board(min_row=min_row, max_row=max_row, min_col=min_col, max_col=max_col)
+            else:
+                mini_board.draw_board()
+
+            # 摆放棋子
+            mini_board.place_preset_stones(mini_game.current_problem.prepos)
+
+            # 显示题目信息
+            status_dict = { 0: "审核", 1: "取消", 2: "入库" }
+            status_str = status_dict.get(mini_game.current_problem.status, "未知")
+            info_text = f"Q-{mini_game.current_problem.publicid}\n{mini_game.current_problem.qtype} {mini_game.current_problem.level} {status_str}"
+            info_label = tk.Label(problem_frame, text=info_text)
+            info_label.pack()
+
+            # 绑定点击事件，点击后在主棋盘中加载该题目
+            problem_canvas.bind("<Button-1>", lambda e, idx=index: self.load_problem_from_match(idx))
+
+    def load_problem_from_match(self, index):
+        selected_problem = self.matching_problems[index]
+        # 加载选中的题目
+        self.game.load_problems(criteria={'_id': selected_problem.get('_id')})
+        self.next_problem(self.board)
+        # 关闭搜索窗口
         self.search_window.destroy()
 
 # 测试程序，快速显示下一题

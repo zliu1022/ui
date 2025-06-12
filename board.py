@@ -211,6 +211,7 @@ class GoProblem:
         self.qtype = self.problem_data.get('qtype', 'N/A')
         self.size = self.problem_data.get('size', full_board_size)
         self.options = self.problem_data.get('options', [])
+        self.status = self.problem_data.get('status', [])
 
     @staticmethod
     def load_problems_from_db(criteria):
