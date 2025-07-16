@@ -350,7 +350,10 @@ class GoApp:
         prepos['b'].sort()
         prepos['w'].sort()
 
+        # 动态匹配，打印当前min_pp
         stones = parse_prepos(prepos)
+        stones_key_list = [list(item) for item in tuple(stones)]
+        print(json.dumps(stones_key_list, sort_keys=True))
 
         configurations = []
 
@@ -417,6 +420,11 @@ class GoApp:
                 self.matching_problems.append(problem)
         end_time = time.time()
         print(f'$match {end_time-start_time:>5.2f}s {len(self.matching_problems):>6}')
+
+        # 匹配到的数量小于3个，打印min_pp
+        if len(self.matching_problems)>0 and len(self.matching_problems)<=3:
+            for p in self.matching_problems:
+                print(p.get('publicid'), p.get('min_pp'))
 
         # Update the matching problems display
         self.update_matching_display()
