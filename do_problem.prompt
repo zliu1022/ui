@@ -1,0 +1,152 @@
+
+mongodb，db库，q表格，存放了围棋的死活题和答案，
+prepos是题目的棋形，answer是题目的答案，answer里面ty==1表示是答案类型是正解，st==2表示已经审核通过，只需要考虑这两种答案即可
+格式：
+```
+{
+  publicid: 477,
+  "prepos": {
+    "b": [
+      "nc",
+      "nd",
+      "oe",
+      "of",
+      "pf",
+      "qf",
+      "rf",
+      "rd",
+      "ra",
+      "qb",
+      "pb",
+      "ob"
+    ],
+    "w": [
+      "oc",
+      "od",
+      "pe",
+      "qe",
+      "re",
+      "pc",
+      "qc",
+      "rc",
+      "rb",
+      "sb"
+    ]
+  },
+  blackfirst: true,
+  "answers": [
+    {
+      "ty": 1,
+      "st": 1,
+      "p": [
+        "sd"
+      ]
+    },
+    {
+      "ty": 1,
+      "st": 1,
+      "p": [
+        "sd",
+        "se",
+        "qd",
+        "pd",
+        "sf",
+        "sc",
+        "rd",
+        "qa",
+        "pa",
+        "sa",
+        "qa",
+        "sd",
+        "qd"
+      ]
+    },
+    {
+      "ty": 1,
+      "st": 2,
+      "p": [
+        "sd",
+        "se",
+        "qd"
+      ]
+    },
+    {
+      "ty": 1,
+      "st": 1,
+      "p": [
+        "sd",
+        "se",
+        "sa",
+        "qa",
+        "ra",
+        "sa",
+        "sg",
+        "ne",
+        "mf",
+        "me",
+        "le",
+        "md",
+        "ld",
+        "mc",
+        "lc",
+        "nb",
+        "nf",
+        "nd",
+        "mb",
+        "pd",
+        "na",
+        "nc",
+        "qd",
+        "sf",
+        "pa",
+        "ra",
+        "sc"
+      ]
+    },
+    {
+      "ty": 1,
+      "st": 1,
+      "p": [
+        "sd",
+        "se",
+        "qd",
+        "pd",
+        "sf",
+        "sc",
+        "rd",
+        "qa",
+        "pa",
+        "nb",
+        "mb",
+        "na",
+        "ma",
+        "sa",
+        "oa",
+        "qa",
+        "nb",
+        "ra",
+        "qd",
+        "sd",
+        "rd",
+        "qd",
+        "rd"
+      ]
+    },
+    {
+      "ty": 2,
+      "st": 2,
+      "p": [
+        "sd",
+        "qd",
+        "se"
+      ]
+    }
+  ]
+}
+```
+
+python编程：
+1. 死活题一般都只占了一个棋盘的角落，找到一个最小能够摆放这个死活题的棋盘大小，必须是奇数
+2. 把prepos的坐标通过8种对称中的一个对称，变换为最靠近坐标aa的坐标
+3. 把prepos和answer生成sgf文件输出，输出文件名字为publicid字段内容，扩展名 sgf
+4. 进程调用“~/go/katago/katago-metal-4move-intlead gtp -config ~/go/katago/gtp_normal_v250.cfg -model ~/go/katago/b28.bin.gz”，这是个围棋的gtp引擎，像这个引擎输出死活题，然后根据blackfirst，发出下一步命令，如：genmove b，根据获取到的答案，和answer进行对比，如果正确，则输出正确
