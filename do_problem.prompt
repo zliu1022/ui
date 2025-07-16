@@ -146,7 +146,26 @@ prepos是题目的棋形，answer是题目的答案，answer里面ty==1表示是
 ```
 
 python编程：
-1. 死活题一般都只占了一个棋盘的角落，找到一个最小能够摆放这个死活题的棋盘大小，必须是奇数
-2. 把prepos的坐标通过8种对称中的一个对称，变换为最靠近坐标aa的坐标
-3. 把prepos和answer生成sgf文件输出，输出文件名字为publicid字段内容，扩展名 sgf
-4. 进程调用“~/go/katago/katago-metal-4move-intlead gtp -config ~/go/katago/gtp_normal_v250.cfg -model ~/go/katago/b28.bin.gz”，这是个围棋的gtp引擎，像这个引擎输出死活题，然后根据blackfirst，发出下一步命令，如：genmove b，根据获取到的答案，和answer进行对比，如果正确，则输出正确
+
+# 死活题做题类：读取死活题，计算最小棋盘大小，并进行坐标转换，存为sgf，调用围棋gtp引擎做题
+1. 封装成类
+2. 按照给出的围棋的死活题和答案的json格式，读取死活题
+3. 计算最小棋盘大小：死活题一般都只占了一个棋盘的角落，找到一个最小能够摆放这个死活题的棋盘大小，必须是奇数
+4. 坐标变换：把prepos的坐标通过8种对称中的一个对称，变换为最靠近坐标aa的坐标
+5. 提供功能另存为sgf：把prepos和answer生成sgf文件输出，输出文件名字为publicid字段内容，扩展名 sgf
+6. 提供做题功能：调用围棋gtp引擎类，发送死活题，然后根据blackfirst，发出生成下一步命令（如：genmove b），得到死活题答案，计算answers的gtp坐标，进行比对，并输出，注意：gtp坐标和sgf坐标是不同的，gtp坐标如：Q16，是一个大写字母和数字
+
+# 围棋gtp引擎类：启动围棋gtp引擎，做死活题，并进行答案核对，可以启动一次后反复使用
+1. 把围棋gtp引擎启动、反复stdout，stderr读，stdin写封装成类
+2. 进程启动“/Users/zliu/go/katago/katago-metal-4move-intlead gtp -config /Users/zliu/go/katago/gtp_normal_v250.cfg -model /Users/zliu/go/katago/b28.bin.gz”
+3. 引擎启动需要很长时间，超时可以设定为120s，引擎会在stdout和stderr打印启动信息，直到读取到“GTP ready, beginning main protocol loop”，引擎启动完毕
+4. 提供一个写入命令的接口，可以让其他类来调用，如发送命令：boardsize，clear_board，play b C2，genmove b
+5. 提供一个读取命令执行结果的接口，从stdout读取输出，直到读取到"=回车"
+6. 提供一个读取stderr结果的接口，读取额外的错误信息
+
+# main函数
+1. 启动“围棋gtp引擎类”，并等待启动成功
+2. 读取mongodb，db库，q表格，搜索如：{'publicid': 477}，得到死活题文档
+3. 启动“死活题做题类”，输入参数是死活题文档
+4. 调用另存为sgf
+5. 调用做题，打印做题的结果
