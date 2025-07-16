@@ -138,11 +138,11 @@ class GTPEngine:
 
                     r = next_line.rstrip('\n').split()
                     m = {
-                        'move': r[2],
-                        'visits': r[4],
-                        'winrate': r[10],
-                        'scoreLead': r[16],
-                        'pv': r[30:]
+                        #'move': r[2],
+                        'visits': int(r[4]),
+                        #'winrate': r[10],
+                        #'scoreLead': r[16],
+                        #'pv': r[30:]
                     }
                     response.append(m)
 
@@ -152,7 +152,7 @@ class GTPEngine:
                         self.process.stdin.flush()
                         break
 
-                    temp_threshold = 60
+                    temp_threshold = 75
                     cpu, gpu, other, cpu_data, gpu_data, other_data = get_temperature()
                     if cpu>temp_threshold or gpu>temp_threshold or other>temp_threshold:
                         self.process.stdin.write('\n')
@@ -219,13 +219,17 @@ def batch_send_command(gtp_engine):
     duration = end_time - start_time
     print(f'\ncost {duration:>5.2f}s')
 
-def analyze_command(gtp_engine):
+def analyze_command(gtp_engine, max_visits=10):
     start_time = time.time()
-    response = gtp_engine.analyze_command(3)
-    pprint(response)
+    visits = 0
+    while visits<max_visits:
+        response = gtp_engine.analyze_command(3)
+        print(response)
+        visits = response[-1].get('visits')
+        cooling_gpu(70)
     end_time = time.time()
     duration = end_time - start_time
-    print(f'\ncost {duration:>5.2f}s')
+    print(f'cost {duration:>5.2f}s')
 
 def test():
     # Start GTP engine
@@ -237,9 +241,7 @@ def test():
     ]
     gtp_engine = GTPEngine(engine_command)
 
-    analyze_command(gtp_engine)
-    analyze_command(gtp_engine)
-    analyze_command(gtp_engine)
+    analyze_command(gtp_engine, max_visits=1000)
     #send_one_command(gtp_engine)
     #batch_send_command(gtp_engine)
 
