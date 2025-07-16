@@ -4,6 +4,16 @@
 import subprocess
 import threading
 import time
+from pprint import pprint
+from get_temperature import get_temperature
+
+def cooling_gpu(temp_threshold=60):
+    time.sleep(1)
+    cpu, gpu, other, cpu_data, gpu_data, other_data = get_temperature()
+    while cpu>temp_threshold or gpu>temp_threshold or other>temp_threshold:
+        sleep_time = 5*max(cpu-temp_threshold, gpu-temp_threshold, other-temp_threshold)
+        time.sleep(sleep_time)
+        cpu, gpu, other, cpu_data, gpu_data, other_data = get_temperature()
 
 class GTPEngine:
     def __init__(self, command, cwd=None):
@@ -93,6 +103,73 @@ class GTPEngine:
         self.stdout_thread.join()
         self.stderr_thread.join()
 
+    def analyze_command(self, resp_num):
+        interval = 100
+
+        # Clear any previous stdout_lines
+        if len(self.stdout_lines):
+            print(f'Remain1 stdout {self.stdout_lines}')
+        self.stdout_lines.clear()
+
+        # Send the command
+        self.process.stdin.write(f'kata-analyze b {interval}' + '\n')
+        self.process.stdin.flush()
+
+        # Read the response
+        response = []
+        resp_count = 0
+        while True:
+            if len(self.stdout_lines) == 0:
+                time.sleep(0.01)
+                continue
+            line = self.stdout_lines.pop(0)
+
+            if line.startswith('=') or line.startswith('?'):
+                response += line[1:].rstrip('\n') # Remove the '=' or '?', but keep the rest intact
+                # Now read until blank line
+                # info move R16 visits 56 edgeVisits 56
+                # utility -0.292949 winrate 0.36 scoreMean -0.83654 scoreStdev 13.5276 scoreLead -1 scoreSelfplay -1.52978
+                # prior 0.0713674 lcb 0.353621 utilityLcb -0.304088 weight 175.554 order 0 pv R16 D16 D3 Q4 O17 C5 F4 D9 F17
+                while True:
+                    if len(self.stdout_lines) == 0:
+                        time.sleep(interval/1000)
+                        continue
+                    next_line = self.stdout_lines.pop(0)
+
+                    r = next_line.rstrip('\n').split()
+                    m = {
+                        'move': r[2],
+                        'visits': r[4],
+                        'winrate': r[10],
+                        'scoreLead': r[16],
+                        'pv': r[30:]
+                    }
+                    response.append(m)
+
+                    resp_count += 1
+                    if resp_count == resp_num:
+                        self.process.stdin.write('\n')
+                        self.process.stdin.flush()
+                        break
+
+                    temp_threshold = 60
+                    cpu, gpu, other, cpu_data, gpu_data, other_data = get_temperature()
+                    if cpu>temp_threshold or gpu>temp_threshold or other>temp_threshold:
+                        self.process.stdin.write('\n')
+                        self.process.stdin.flush()
+                        break
+
+                break
+            else:
+                print('line', line)
+
+        # Clear any previous stdout_lines
+        if len(self.stdout_lines):
+            print(f'Remain3 stdout {self.stdout_lines}')
+        self.stdout_lines.clear()
+
+        return response
+
 def send_one_command(gtp_engine):
     start_time = time.time()
 
@@ -142,6 +219,14 @@ def batch_send_command(gtp_engine):
     duration = end_time - start_time
     print(f'\ncost {duration:>5.2f}s')
 
+def analyze_command(gtp_engine):
+    start_time = time.time()
+    response = gtp_engine.analyze_command(3)
+    pprint(response)
+    end_time = time.time()
+    duration = end_time - start_time
+    print(f'\ncost {duration:>5.2f}s')
+
 def test():
     # Start GTP engine
     katago_cfg_filename = '/Users/zliu/go/katago/gtp_normal_v500.cfg'
@@ -152,8 +237,11 @@ def test():
     ]
     gtp_engine = GTPEngine(engine_command)
 
-    send_one_command(gtp_engine)
-    batch_send_command(gtp_engine)
+    analyze_command(gtp_engine)
+    analyze_command(gtp_engine)
+    analyze_command(gtp_engine)
+    #send_one_command(gtp_engine)
+    #batch_send_command(gtp_engine)
 
     # Stop GTP engine
     gtp_engine.close()
